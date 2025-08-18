@@ -1,0 +1,40 @@
+1. Presentation Structure
+Prepare your slides in this order:
+
+What is a Tabular Foundation Model?
+– Brief overview of TabPFN’s purpose and innovation.
+
+Motivation for Analysis
+– Why analyze TabPFN? Use key figures from the paper to illustrate.
+
+How We Planned the Analysis (Overview & Objective)
+– Summarize our experimental plan and goals.
+
+Results & Observations
+– Share comparative results, main findings, and any notable issues.
+
+Conclusion & Limitations
+– Key takeaways and any limitations identified.
+
+2. Dataset Organization
+For each dataset (heart + 7 others):
+
+State the exact sample count and number of target classes (or regression target).
+
+Clearly define your train-test splits (percentages and numbers).
+
+Add a short description of each dataset.
+
+If new datasets are added, mention why they were chosen.
+
+3. Results Saving & Reuse
+Save all model predictions (TabPFN, AutoGluon, CatBoost, LightGBM, XGBoost) for each test set as .txt or .csv files—one file per model per dataset (e.g., heart_TabPFN_predictions.txt).
+
+This will help with future visualizations and quick re-analysis.
+
+4. General Notes
+Document all work, including code and observations.
+
+Use clear bullets and well-labeled figures in your slides.
+
+Note any mismatches between the TabPFN paper and your findings.
