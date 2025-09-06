@@ -1,0 +1,7 @@
+model,acc,roc_auc,logloss,fit_s,best_params
+XGBoost (tuned),0.869565217,0.926076178,0.378510276,23.0594523,"{'alpha': 4.728556030954289e-10, 'colsample_bylevel': 0.7350730021308858, 'colsample_bytree': 0.7327378852939974, 'gamma': 4.399062970481791e-06, 'lambda': 8.81033199125661e-12, 'learning_rate': 0.000848601863122447, 'max_depth': 3, 'min_child_weight': 3.246976644103031e-14, 'n_estimators': 1585, 'subsample': 0.8791310594128672}"
+SVC (tuned),0.869565217,0.923371648,0.318375466,0.816396236,"{'C': 0.3972110727381912, 'gamma': 'scale', 'kernel': 'rbf', 'probability': True}"
+CatBoost (tuned),0.862318841,0.92314627,0.345186817,484.2938809,"{'bagging_temperature': 0.013264961159866528, 'depth': 3, 'iterations': 2463, 'l2_leaf_reg': 3.658374977026927, 'learning_rate': 0.0008454394570685, 'random_strength': 2}"
+RandomForest (tuned),0.876811594,0.92314627,0.353614552,6.888696432,"{'max_depth': 9, 'max_features': 'sqrt', 'min_samples_split': 10, 'n_estimators': 158}"
+MLP (tuned),0.84057971,0.910975885,0.375731054,24.00224662,"{'activation': 'relu', 'alpha': 0.0010304988607329605, 'early_stopping': True, 'hidden_layer_sizes': (256,), 'learning_rate_init': 0.011736598743765089, 'max_iter': 500}"
+LightGBM (tuned),0.862318841,0.905341447,0.393116874,19.12995744,"{'colsample_bytree': 0.6994655844802531, 'learning_rate': 0.004335281794951566, 'max_depth': 3, 'min_child_weight': 10, 'n_estimators': 302, 'num_leaves': 48, 'reg_alpha': 0, 'reg_lambda': 0, 'subsample': 0.5148647961550334}"
