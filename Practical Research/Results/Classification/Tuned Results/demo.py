@@ -1,210 +1,148 @@
 import re
-import glob
 import pandas as pd
 from pathlib import Path
 
-# -----------------------
-# CONFIG
-# -----------------------
-# 1) Where your six CSVs are:
-INPUT_GLOB = "results_exp*.csv"       # e.g., results_exp1.csv ... results_exp6.csv
+# ====== your list of CSVs ======
+files = [
+    "../Comparing Results/australian_results.csv",
+    "../Comparing Results/blood_transfusion_results.csv",
+    "../Comparing Results/chum_results.csv",
+    "../Comparing Results/cmc_results.csv",
+    "../Comparing Results/credit_g_results.csv",
+    "../Comparing Results/heart_results.csv"
+]
 
-# 2) Which metrics to include in the WINS table (choose what matches your task)
-#    For classification:
+# ====== CONFIG (adjust only if needed) ======
+# Choose which metrics to show in the WINS table
 CLASSIFICATION_METRICS = ["ROC_AUC", "Accuracy", "F1", "CE", "ECE"]
-#    For regression (uncomment and use these instead):
-# REGRESSION_METRICS = ["MAE", "R2", "RMSE"]
+REGRESSION_METRICS     = ["MAE", "R2", "RMSE"]
+METRICS_FOR_WINS       = CLASSIFICATION_METRICS   # or REGRESSION_METRICS
 
-# 3) Direction of better = higher (True) or lower (False)
-#    Adjust if needed for your metrics.
+# Direction: higher is better (True) / lower is better (False)
 METRIC_DIRECTION = {
-    # classification
-    "ROC_AUC": True,
-    "Accuracy": True,
-    "F1": True,
-    "CE": False,
-    "ECE": False,
-    "Time_s": False,
-    # regression
-    "MAE": False,
-    "R2": True,
-    "RMSE": False,
+    "ROC_AUC": True, "Accuracy": True, "F1": True, "CE": False, "ECE": False,
+    "Time_s": False, "MAE": False, "R2": True, "RMSE": False,
 }
 
-# 4) Which set to use for wins (pick ONE line)
-METRICS_FOR_WINS = CLASSIFICATION_METRICS
-# METRICS_FOR_WINS = REGRESSION_METRICS
+# ====== HELPERS ======
+def _norm(s: str) -> str:
+    s = s.strip()
+    s = re.sub(r"\s+", "_", s)
+    s = s.replace("-", "_")
+    return s
 
-# 5) Output CSVs
-SUMMARY_CSV = "summary_results.csv"
-WINS_CSV    = "wins_table.csv"
-
-# -----------------------
-# HELPERS
-# -----------------------
-def normalize_col(c: str) -> str:
+def _parse_col(c: str):
     """
-    Normalize column names like:
-      'Raw_Mean Normalized_ROC AUC' -> 'Raw_Mean_Normalized_ROC_AUC'
-    and fix common variations.
+    Accepts columns like:
+      Raw_Mean_ROC_AUC
+      Processed_Mean Normalized_ROC AUC
+      Raw_Wins_RMSE
+    Returns (Split, Agg, Metric) or None.
     """
-    c = c.strip()
-    c = re.sub(r"\s+", "_", c)
-    c = c.replace("-", "_")
-    return c
-
-def split_agg_col(c: str):
-    """
-    Try to parse a column into (split, agg, metric), e.g.
-      'Raw_Mean_ROC_AUC'          -> ('Raw', 'Mean', 'ROC_AUC')
-      'Processed_Mean_Normalized_ROC_AUC' -> ('Processed','Mean_Normalized','ROC_AUC')
-    Returns None if doesn't match the pattern we care about.
-    """
-    c = normalize_col(c)
-    # Accept Raw/Processed prefixes
+    c = _norm(c)
     m = re.match(r"^(Raw|Processed)_(.+)$", c, flags=re.I)
     if not m:
         return None
-    split = m.group(1).title()    # Raw/Processed
+    split = m.group(1).title()
     rest  = m.group(2)
 
-    # Try to peel off 'Mean_Normalized' or 'Mean'
     if rest.lower().startswith("mean_normalized_"):
-        agg = "Mean_Normalized"
-        metric = rest[len("Mean_Normalized_"):]
+        agg = "Mean_Normalized"; metric = rest[len("mean_normalized_"):]
     elif rest.lower().startswith("mean_"):
-        agg = "Mean"
-        metric = rest[len("Mean_"):]
+        agg = "Mean"; metric = rest[len("mean_"):]
     elif rest.lower().startswith("wins_"):
-        agg = "Wins"
-        metric = rest[len("Wins_"):]
+        agg = "Wins"; metric = rest[len("wins_"):]
     else:
-        # optionally you can capture other fields like times, etc.
-        # We'll treat bare metrics under Mean by default
-        agg = "Mean"
-        metric = rest
+        agg = "Mean"; metric = rest
+    return split, agg, _norm(metric)
 
-    metric = normalize_col(metric)
-    return split, agg, metric
+def _longify(df: pd.DataFrame, dataset_id: str) -> pd.DataFrame:
+    df = df.copy()
+    df.columns = [_norm(c) for c in df.columns]
+    if "Model" not in df.columns:
+        raise ValueError(f"{dataset_id}: missing 'Model' column")
 
-def longify(df: pd.DataFrame, dataset_id: str):
-    """
-    Convert a wide one-dataset table into long format:
-    columns -> Split / Agg / Metric, with value
-    Keeps 'Model' as identifier.
-    """
-    df2 = df.copy()
-    df2.columns = [normalize_col(c) for c in df2.columns]
-    if "Model" not in df2.columns:
-        raise ValueError("Input files must have a 'Model' column.")
-    id_cols = ["Model"]
-    long_rows = []
-    for col in df2.columns:
-        if col in id_cols:
+    rows = []
+    for col in df.columns:
+        if col == "Model":
             continue
-        parsed = split_agg_col(col)
+        parsed = _parse_col(col)
         if not parsed:
-            # skip unknown columns safely
             continue
         split, agg, metric = parsed
-        for model, val in zip(df2["Model"], df2[col]):
-            long_rows.append({
+        for model, val in zip(df["Model"], df[col]):
+            rows.append({
                 "Dataset": dataset_id,
                 "Model": model,
-                "Split": split,          # Raw / Processed
-                "Agg": agg,              # Mean / Mean_Normalized / Wins
-                "Metric": metric,        # ROC_AUC, Accuracy, ...
+                "Split": split,     # Raw | Processed
+                "Agg": agg,         # Mean | Mean_Normalized | Wins
+                "Metric": metric,   # ROC_AUC | Accuracy | ...
                 "Value": val,
             })
-    return pd.DataFrame(long_rows)
+    return pd.DataFrame(rows)
 
-# -----------------------
-# LOAD & COMBINE
-# -----------------------
-paths = sorted(glob.glob(INPUT_GLOB))
-if not paths:
-    raise SystemExit(f"No files matched {INPUT_GLOB}")
+# ====== LOAD & COMBINE ======
+parts = []
+for p in files:
+    dataset_id = Path(p).stem
+    df = pd.read_csv(p)
+    parts.append(_longify(df, dataset_id))
+long_df = pd.concat(parts, ignore_index=True)
 
-long_all = []
-for p in paths:
-    dataset_id = Path(p).stem    # use filename stem as dataset label
-    wide = pd.read_csv(p)
-    long_all.append(longify(wide, dataset_id))
-
-long_df = pd.concat(long_all, ignore_index=True)
-
-# -----------------------
-# SUMMARY (mean ± std across datasets)
-# -----------------------
-# Only use Agg == 'Mean' for the mean±std table
+# ====== SUMMARY (mean ± std across datasets) ======
+# Use the “Mean” columns (switch to "Mean_Normalized" if you prefer)
 mean_df = long_df[long_df["Agg"].eq("Mean")]
 
-g = (mean_df
-     .groupby(["Model","Split","Metric"])["Value"]
-     .agg(['mean','std'])
-     .reset_index())
+agg = (mean_df
+       .groupby(["Model","Split","Metric"])["Value"]
+       .agg(['mean','std'])
+       .reset_index())
+agg["mean_std"] = agg["mean"].round(3).astype(str) + " ± " + agg["std"].round(2).astype(str)
 
-# format mean ± std (3 decimals for mean, 2 for std)
-g["mean_std"] = g["mean"].round(3).astype(str) + " ± " + g["std"].round(2).astype(str)
-
-# Pivot to wide with columns like 'Processed|ROC_AUC', 'Raw|Accuracy', ...
-summary_wide = g.pivot_table(index="Model",
-                             columns=["Split","Metric"],
-                             values="mean_std",
-                             aggfunc="first").sort_index(axis=1)
-
-# Flatten columns for CSV friendliness
+summary_wide = agg.pivot_table(index="Model",
+                               columns=["Split","Metric"],
+                               values="mean_std",
+                               aggfunc="first").sort_index(axis=1)
 summary_wide.columns = [f"{s}|{m}" for (s,m) in summary_wide.columns]
-summary_wide.to_csv(SUMMARY_CSV)
+summary_out = "summary_results.csv"
+summary_wide.to_csv(summary_out)
 
-# -----------------------
-# WINS TABLE (per split & metric)
-# -----------------------
-# We compute wins per Dataset, Split, Metric on the 'Mean' values.
-def compute_wins(df: pd.DataFrame, metrics):
+# ====== WINS TABLE (ties count as wins) ======
+def _wins_table(df: pd.DataFrame, metrics):
     rows = []
+    base = df[df["Agg"].eq("Mean")]   # or "Mean_Normalized"
     for split in ["Processed","Raw"]:
         for metric in metrics:
-            sub = df[(df["Split"].eq(split)) &
-                     (df["Metric"].eq(metric)) &
-                     (df["Agg"].eq("Mean"))]
+            sub = base[(base["Split"].eq(split)) & (base["Metric"].eq(metric))]
             if sub.empty:
                 continue
-            # find winners per dataset
             for ds, block in sub.groupby("Dataset"):
-                # direction
-                higher_is_better = METRIC_DIRECTION.get(metric, True)
-                best_val = block["Value"].max() if higher_is_better else block["Value"].min()
-                winners = block[block["Value"].eq(best_val)]["Model"].unique()
+                higher = METRIC_DIRECTION.get(metric, True)
+                best = block["Value"].max() if higher else block["Value"].min()
+                winners = block[block["Value"].eq(best)]["Model"].unique()
                 for w in winners:
                     rows.append({"Model": w, "Split": split, "Metric": metric, "Win": 1})
     if not rows:
-        return pd.DataFrame()
-    wins = (pd.DataFrame(rows)
+        return pd.DataFrame(columns=["Model","Split","Metric","Win"])
+    return (pd.DataFrame(rows)
             .groupby(["Model","Split","Metric"])["Win"].sum()
             .reset_index())
-    return wins
 
-wins_long = compute_wins(long_df, METRICS_FOR_WINS)
-
-# Pivot to wide layout like your screenshot (two blocks: Processed / Raw)
+wins_long = _wins_table(long_df, METRICS_FOR_WINS)
 wins_wide = wins_long.pivot_table(index="Model",
                                   columns=["Split","Metric"],
                                   values="Win",
                                   fill_value=0,
                                   aggfunc="sum").sort_index(axis=1)
 
-# Ensure missing combos appear as 0 columns (for consistent order)
-all_cols = []
-for split in ["Processed","Raw"]:
-    for metric in METRICS_FOR_WINS:
-        all_cols.append((split, metric))
+# enforce column order: Processed block then Raw block (like your screenshot)
+all_cols = [(s, m) for s in ["Processed","Raw"] for m in METRICS_FOR_WINS]
 for c in all_cols:
     if c not in wins_wide.columns:
         wins_wide[c] = 0
 wins_wide = wins_wide[all_cols]
-
-# Flatten columns as 'Processed|MAE', 'Raw|RMSE', etc., for CSV
 wins_wide.columns = [f"{s}|{m}" for (s,m) in wins_wide.columns]
-wins_wide.to_csv(WINS_CSV)
-print(f"Saved:\n  - {SUMMARY_CSV}\n  - {WINS_CSV}")
+wins_out = "wins_table.csv"
+wins_wide.to_csv(wins_out)
+
+print(f"Saved:\n  - {summary_out}\n  - {wins_out}")
