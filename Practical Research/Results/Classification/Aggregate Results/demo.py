@@ -4,12 +4,12 @@ from pathlib import Path
 
 # ====== your list of CSVs ======
 files = [
-    "../Comparing Results/australian_results.csv",
-    "../Comparing Results/blood_transfusion_results.csv",
-    "../Comparing Results/chum_results.csv",
-    "../Comparing Results/cmc_results.csv",
-    "../Comparing Results/credit_g_results.csv",
-    "../Comparing Results/heart_results.csv"
+    "Comparing Results/australian_results.csv",
+    "Comparing Results/blood_transfusion_results.csv",
+    "Comparing Results/chum_results.csv",
+    "Comparing Results/cmc_results.csv",
+    "Comparing Results/credit_g_results.csv",
+    "Comparing Results/heart_results.csv"
 ]
 
 # ====== CONFIG (adjust only if needed) ======
